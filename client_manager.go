@@ -62,7 +62,7 @@ func (m *ClientManager) resetClientInstances() {
 	m.instances = make([]*ClientInstance, m.maxClients)
 	for i := 0; i < m.maxClients; i += 1 {
 		instance := NewClientInstance()
-		log.Printf("netcode.ClientManager.resetClientInstances: created new client at clientIndex %d", i)
+		// log.Printf("netcode.ClientManager.resetClientInstances: created new client at clientIndex %d", i)
 		m.instances[i] = instance
 	}
 }
@@ -142,7 +142,7 @@ func (m *ClientManager) ConnectClient(addr *netaddr.IPPort, challengeToken *Chal
 	client.clientId = challengeToken.ClientId
 	client.address = addr
 	m.activeInstances[*addr] = client
-	log.Printf("netcode.ClientManager.ConnectClient: connecting new client at clientIndex %d client address %s lastSendTime %f lastSendTime %f",client.clientIndex, client.address, client.lastSendTime, client.lastRecvTime)
+	log.Printf("netcode.ClientManager.ConnectClient: connecting new client at clientIndex %d client address %s lastSendTime %f lastSendTime %f", client.clientIndex, client.address, client.lastSendTime, client.lastRecvTime)
 	copy(client.userData, challengeToken.UserData.Bytes())
 	return client
 }

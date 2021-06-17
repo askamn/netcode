@@ -3,7 +3,6 @@ package netcode
 import (
 	"fmt"
 	"net"
-	"strconv"
 
 	"inet.af/netaddr"
 )
@@ -19,7 +18,7 @@ const (
 // connect token.
 type sharedTokenData struct {
 	TimeoutSeconds int32            // timeout in seconds. -1 means disable timeout (dev only).
-	ServerAddrs    []netaddr.IPPort // list of server addresses this client may connect to
+	ServerAddrs    []NetcodeAddress // list of server addresses this client may connect to
 	ClientKey      []byte           // client to server key
 	ServerKey      []byte           // server to client key
 }
@@ -61,7 +60,7 @@ func (shared *sharedTokenData) ReadShared(buffer *Buffer) error {
 		return ErrTooManyServers
 	}
 
-	shared.ServerAddrs = make([]netaddr.IPPort, servers)
+	shared.ServerAddrs = make([]NetcodeAddress, servers)
 
 	for i := 0; i < int(servers); i += 1 {
 		serverType, err := buffer.GetUint8()
@@ -98,7 +97,8 @@ func (shared *sharedTokenData) ReadShared(buffer *Buffer) error {
 		if err != nil {
 			return ErrInvalidPort
 		}
-		shared.ServerAddrs[i] = netaddr.IPPort{IP: ip, Port: port}
+
+		shared.ServerAddrs[i] = NetcodeAddress{Hostname: "", Port: port, IPPort: netaddr.IPPort{IP: ip, Port: port}}
 	}
 
 	if shared.ClientKey, err = buffer.GetBytes(KEY_BYTES); err != nil {
@@ -118,39 +118,19 @@ func (shared *sharedTokenData) WriteShared(buffer *Buffer) error {
 	buffer.WriteUint32(uint32(len(shared.ServerAddrs)))
 
 	for _, addr := range shared.ServerAddrs {
-		host, port, err := net.SplitHostPort(addr.String())
-		if err != nil {
-			return fmt.Errorf("invalid port for host: %v", addr)
-		}
-
-		parsed := net.ParseIP(host)
-		if parsed == nil {
+		addressLength := uint16(len(addr.Hostname))
+		if addressLength == 0 {
 			return ErrInvalidIPAddress
 		}
 
-		parsedIpv4 := parsed.To4()
-		if parsedIpv4 != nil {
-			buffer.WriteUint8(uint8(ADDRESS_IPV4))
-			for i := 0; i < len(parsedIpv4); i += 1 {
-				buffer.WriteUint8(parsedIpv4[i])
-			}
-		} else {
-			buffer.WriteUint8(uint8(ADDRESS_IPV6))
-			for i := 0; i < len(parsed); i += 2 {
-				var n uint16
-				// net.IP is already big endian encoded, encode it to create little endian encoding.
-				n = uint16(parsed[i]) << 8
-				n |= uint16(parsed[i+1])
-				buffer.WriteUint16(n)
-			}
-		}
+		// Write the hostname
+		buffer.WriteUint16(addressLength)
+		buffer.WriteBytes([]byte(addr.Hostname))
 
-		p, err := strconv.ParseUint(port, 10, 16)
-		if err != nil {
-			return err
-		}
-		buffer.WriteUint16(uint16(p))
+		// Write the port
+		buffer.WriteUint16(uint16(addr.Port))
 	}
+
 	buffer.WriteBytesN(shared.ClientKey, KEY_BYTES)
 	buffer.WriteBytesN(shared.ServerKey, KEY_BYTES)
 	return nil

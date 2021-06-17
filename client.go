@@ -117,7 +117,11 @@ func (c *Client) Connect() error {
 		return ErrExceededServerNumber
 	}
 
-	c.serverAddress = &c.connectToken.ServerAddrs[c.serverIndex]
+	c.serverAddress = c.getCurrentServerAddress()
+
+	if c.serverAddress == nil {
+		return ErrEmptyServers
+	}
 
 	c.conn = NewNetcodeConn()
 	c.conn.SetRecvHandler(c.handleNetcodeData)
@@ -138,7 +142,11 @@ func (c *Client) connectNextServer() bool {
 	}
 
 	c.serverIndex++
-	c.serverAddress = &c.connectToken.ServerAddrs[c.serverIndex]
+	c.serverAddress = c.getCurrentServerAddress()
+
+	if c.serverAddress == nil {
+		return false
+	}
 
 	c.Reset()
 
@@ -149,6 +157,37 @@ func (c *Client) connectNextServer() bool {
 	}
 	c.setState(StateSendingConnectionRequest)
 	return true
+}
+
+// TODO: This might need some more work!
+func (c *Client) getCurrentServerAddress() *netaddr.IPPort {
+	ip, err := netaddr.ParseIP(c.connectToken.ServerAddrs[c.serverIndex].Hostname)
+	if err != nil {
+		log.Printf("Not a valid hostname, performing dns lookup: %s\n", err)
+
+		var ok bool
+		ips, err := net.LookupIP(c.connectToken.ServerAddrs[c.serverIndex].Hostname)
+		if err != nil {
+			log.Printf("Lookup failed with error: %s\n", err)
+			return nil
+		}
+
+		for _, _ip := range ips {
+			if ipv4 := _ip.To4(); ipv4 != nil {
+				ip, ok = netaddr.FromStdIP(ipv4)
+				if !ok {
+					return nil
+				}
+			} else if ipv6 := _ip.To16(); ipv6 != nil {
+				ip, ok = netaddr.FromStdIP(ipv6)
+				if !ok {
+					return nil
+				}
+			}
+		}
+	}
+
+	return &netaddr.IPPort{IP: ip, Port: c.connectToken.ServerAddrs[c.serverIndex].Port}
 }
 
 func (c *Client) Close() error {

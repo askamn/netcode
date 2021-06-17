@@ -301,7 +301,7 @@ func (s *Server) processConnectionRequest(packet Packet, addr *netaddr.IPPort) {
 
 	addrFound := false
 	for _, tokenAddr := range requestPacket.Token.ServerAddrs {
-		if addressEqual(s.serverAddr, &tokenAddr) {
+		if addressEqual(s.serverAddr, &tokenAddr.IPPort) {
 			addrFound = true
 			break
 		}
